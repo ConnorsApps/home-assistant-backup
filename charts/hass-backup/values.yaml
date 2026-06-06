@@ -1,0 +1,37 @@
+image:
+  repository: ghcr.io/connorsapps/hass-backup
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# CronJob schedule (default: 3 AM daily)
+schedule: "0 3 * * *"
+successfulJobsHistoryLimit: 3
+failedJobsHistoryLimit: 3
+
+# Non-sensitive environment variables
+env:
+  HASS_URL: ""
+  STORAGE_URL: "s3://backup"
+  AWS_ENDPOINT_URL: ""
+  AWS_REGION: "us-east-1"
+  STORAGE_PREFIX: "home-assistant/"
+  RETENTION_KEEP_LAST: "30"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+
+# Sensitive values stored in a Secret
+# Set: HASS_TOKEN, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+# For GCS use GOOGLE_APPLICATION_CREDENTIALS (mount the SA JSON separately)
+secret: {}
+
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "100m"
+  limits:
+    memory: "256Mi"
+
+prometheusRule:
+  enabled: false
+  namespace: monitoring
+  labels: {}

@@ -1,0 +1,37 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "hass-backup.fullname" . }}
+  namespace: {{ .Values.prometheusRule.namespace }}
+  labels:
+    {{- include "hass-backup.labels" . | nindent 4 }}
+    {{- with .Values.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: hass-backup
+      rules:
+        - alert: HassBackupJobFailed
+          expr: kube_job_status_failed{job_name=~"{{ include "hass-backup.fullname" . }}-.*"} > 0
+          for: 5m
+          labels:
+            severity: high
+          annotations:
+            summary: Home Assistant backup job failed
+            description: "Backup job {{ "{{ $labels.job_name }}" }} has one or more failures."
+        - alert: HassBackupMissing
+          expr: |
+            (
+              (time() - max(kube_job_status_completion_time{job_name=~"{{ include "hass-backup.fullname" . }}-.*"})) > 129600
+            ) or (
+              absent(kube_job_status_completion_time{job_name=~"{{ include "hass-backup.fullname" . }}-.*"})
+            )
+          for: 5m
+          labels:
+            severity: high
+          annotations:
+            summary: Home Assistant backup missing
+            description: No successful Home Assistant backup has completed in the last 36 hours.
+{{- end }}
