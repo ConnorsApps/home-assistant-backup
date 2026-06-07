@@ -16,6 +16,7 @@ env:
   AWS_REGION: "us-east-1"
   STORAGE_PREFIX: "home-assistant/"
   RETENTION_KEEP_LAST: "30"
+  HASS_DELETE_AFTER_TRANSFER: "true"
   LOG_LEVEL: "info"
   LOG_FORMAT: "json"
 

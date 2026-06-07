@@ -18,10 +18,11 @@ type Config struct {
 }
 
 type HomeAssistantConfig struct {
-	URL                string `json:"url" yaml:"url" env:"URL"`
-	Token              string `json:"token" yaml:"token" env:"TOKEN"`
-	Timeout            string `json:"timeout" yaml:"timeout" env:"TIMEOUT"`
-	InsecureSkipVerify bool   `json:"insecureSkipVerify" yaml:"insecureSkipVerify" env:"INSECURE"`
+	URL                 string `json:"url" yaml:"url" env:"URL"`
+	Token               string `json:"token" yaml:"token" env:"TOKEN"`
+	Timeout             string `json:"timeout" yaml:"timeout" env:"TIMEOUT"`
+	InsecureSkipVerify  bool   `json:"insecureSkipVerify" yaml:"insecureSkipVerify" env:"INSECURE"`
+	DeleteAfterTransfer bool   `json:"deleteAfterTransfer" yaml:"deleteAfterTransfer" env:"DELETE_AFTER_TRANSFER"`
 }
 
 type StorageConfig struct {
@@ -41,8 +42,9 @@ type RetentionConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		HomeAssistant: HomeAssistantConfig{
-			Timeout:            "10m",
-			InsecureSkipVerify: false,
+			Timeout:             "10m",
+			InsecureSkipVerify:  false,
+			DeleteAfterTransfer: true,
 		},
 		Storage: StorageConfig{
 			URL:    "file://./backups",
@@ -125,6 +127,13 @@ func applyEnv(cfg *Config) error {
 			return fmt.Errorf("HASS_INSECURE must be a boolean: %w", err)
 		}
 		cfg.HomeAssistant.InsecureSkipVerify = b
+	}
+	if v, ok := os.LookupEnv("HASS_DELETE_AFTER_TRANSFER"); ok {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("HASS_DELETE_AFTER_TRANSFER must be a boolean: %w", err)
+		}
+		cfg.HomeAssistant.DeleteAfterTransfer = b
 	}
 	if v, ok := os.LookupEnv("STORAGE_URL"); ok {
 		cfg.Storage.URL = v

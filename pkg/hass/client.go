@@ -75,6 +75,28 @@ func (c *Client) CreateBackup(ctx context.Context) (string, error) {
 	return result.Data.Slug, nil
 }
 
+// DeleteBackup removes the backup with the given slug from Home Assistant.
+func (c *Client) DeleteBackup(ctx context.Context, slug string) error {
+	url := fmt.Sprintf("%s/api/hassio/backups/%s", c.baseURL, slug)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
 // DownloadBackup streams the backup tar file for the given slug.
 // The caller is responsible for closing the returned ReadCloser.
 func (c *Client) DownloadBackup(ctx context.Context, slug string) (io.ReadCloser, error) {

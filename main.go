@@ -97,6 +97,14 @@ func main() {
 	}
 	slog.Info("Backup uploaded successfully", "key", key, "bytes", written)
 
+	if cfg.HomeAssistant.DeleteAfterTransfer {
+		if err := client.DeleteBackup(ctx, slug); err != nil {
+			slog.Warn("Failed to delete backup from Home Assistant", "slug", slug, "error", err)
+		} else {
+			slog.Info("Deleted backup from Home Assistant", "slug", slug)
+		}
+	}
+
 	if cfg.Retention.KeepLast > 0 {
 		if err := cleanupOldBackups(ctx, store, cfg.Storage.Prefix, cfg.Retention.KeepLast); err != nil {
 			slog.Warn("Cleanup failed", "error", err)
