@@ -32,3 +32,19 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/name: {{ include "hass-backup.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{- define "hass-backup.storageBackend" -}}
+{{- $url := .Values.env.STORAGE_URL | default "s3://" -}}
+{{- if hasPrefix "gs://" $url -}}gcs
+{{- else if hasPrefix "file://" $url -}}file
+{{- else -}}s3
+{{- end -}}
+{{- end }}
+
+{{- define "hass-backup.imageTag" -}}
+{{- if .Values.image.tag -}}
+{{- .Values.image.tag -}}
+{{- else -}}
+{{- .Chart.AppVersion }}-{{ include "hass-backup.storageBackend" . }}
+{{- end -}}
+{{- end }}

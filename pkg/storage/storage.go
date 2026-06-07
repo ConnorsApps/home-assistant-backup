@@ -7,9 +7,6 @@ import (
 	"strings"
 
 	"gocloud.dev/blob"
-	_ "gocloud.dev/blob/fileblob" // file://
-	_ "gocloud.dev/blob/gcsblob"  // gs://
-	_ "gocloud.dev/blob/s3blob"   // s3://
 )
 
 // ObjectStore abstracts backup storage across S3, GCS, and local filesystems.

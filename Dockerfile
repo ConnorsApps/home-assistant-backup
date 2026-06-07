@@ -12,8 +12,11 @@ COPY pkg/ pkg/
 
 ARG VERSION=dev
 ARG COMMIT=unknown
+ARG STORAGE_BACKEND=s3
 
 RUN CGO_ENABLED=0 go build \
+    -trimpath \
+    -tags ${STORAGE_BACKEND} \
     -ldflags="-w -s -extldflags '-static' \
               -X 'main.Version=${VERSION}' \
               -X 'main.Commit=${COMMIT}'" \
