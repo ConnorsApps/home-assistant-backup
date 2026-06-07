@@ -3,6 +3,16 @@ entries:
   hass-backup:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2026-06-07T15:12:24.698823279Z"
+    description: Backs up Home Assistant to S3-compatible or GCS object storage
+    digest: b714c00cae7779ca7ba6f74445a01cb3213de5e2d74608ad7fed0f33e6a5a690
+    name: hass-backup
+    type: application
+    urls:
+    - https://github.com/ConnorsApps/home-assistant-backup/releases/download/hass-backup-0.1.1/hass-backup-0.1.1.tgz
+    version: 0.1.1
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2026-06-07T14:04:24.166158005Z"
     description: Backs up Home Assistant to S3-compatible or GCS object storage
     digest: b1632201ea904a859f07f07b0be29488d2cb80c1a57c5bf434cfd284515dfe89
@@ -11,4 +21,4 @@ entries:
     urls:
     - https://github.com/ConnorsApps/home-assistant-backup/releases/download/hass-backup-0.1.0/hass-backup-0.1.0.tgz
     version: 0.1.0
-generated: "2026-06-07T14:04:24.16618209Z"
+generated: "2026-06-07T15:12:24.698834947Z"
