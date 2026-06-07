@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
 )
 
 func statusError(code int, body []byte) error {
@@ -38,16 +39,24 @@ type Client struct {
 	baseURL string
 	token   string
 	http    *http.Client
+	tlsCfg  *tls.Config
+}
+
+func (c *Client) wsURL() string {
+	url := strings.Replace(c.baseURL+"/api/websocket", "https://", "wss://", 1)
+	return strings.Replace(url, "http://", "ws://", 1)
 }
 
 func NewClient(baseURL, token string, opts ClientOptions) *Client {
+	tlsCfg := &tls.Config{InsecureSkipVerify: opts.InsecureSkipVerify} //nolint:gosec
 	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: opts.InsecureSkipVerify}, //nolint:gosec
+		TLSClientConfig: tlsCfg,
 	}
 	return &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		token:   token,
 		http:    &http.Client{Transport: transport, Timeout: opts.Timeout},
+		tlsCfg:  tlsCfg,
 	}
 }
 
@@ -89,34 +98,6 @@ func (c *Client) CreateBackup(ctx context.Context) (string, error) {
 	}
 
 	return result.ServiceResponse.Backup, nil
-}
-
-// DeleteBackup removes the backup with the given slug from Home Assistant.
-// Uses the Core service handler (not DELETE /api/hassio/backups/{slug}, which the
-// PATHS_ADMIN allowlist rejects with 405 Method Not Allowed).
-func (c *Client) DeleteBackup(ctx context.Context, slug string) error {
-	body, err := json.Marshal(map[string]string{"slug": slug})
-	if err != nil {
-		return fmt.Errorf("marshal request: %w", err)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/services/hassio/backup_remove", bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("build request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return statusError(resp.StatusCode, b)
-	}
-	return nil
 }
 
 // DownloadBackup streams the backup tar file for the given slug.
