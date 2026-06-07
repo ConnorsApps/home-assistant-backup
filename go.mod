@@ -2,10 +2,7 @@ module github.com/ConnorsApps/hass-backup
 
 go 1.25.0
 
-require (
-	github.com/Marlliton/slogpretty v0.1.3
-	gocloud.dev v0.45.0
-)
+require gocloud.dev v0.45.0
 
 require (
 	cel.dev/expr v0.25.1 // indirect
