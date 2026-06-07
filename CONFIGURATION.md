@@ -29,9 +29,11 @@ Configuration is provided via environment variables.
 For S3-compatible backends (e.g. Ceph RGW, MinIO), set `AWS_ENDPOINT_URL`:
 
 ```bash
-export STORAGE_URL=s3://my-bucket
+export STORAGE_URL=s3://my-bucket?use_path_style=true
 export AWS_ENDPOINT_URL=https://ceph.example.com
 export AWS_REGION=us-east-1
 export AWS_ACCESS_KEY_ID=...
 export AWS_SECRET_ACCESS_KEY=...
 ```
+
+Append `?use_path_style=true` to `STORAGE_URL` for backends that don't support virtual-hosted-style addressing (Ceph RGW, MinIO without wildcard DNS, etc.). Without it the AWS SDK rewrites the endpoint as `<bucket>.<endpoint>` and the DNS lookup will fail with `no such host`. Plain AWS S3 does not need this flag.

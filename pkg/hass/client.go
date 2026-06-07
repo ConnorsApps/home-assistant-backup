@@ -1,6 +1,7 @@
 package hass
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -10,6 +11,23 @@ import (
 	"strings"
 	"time"
 )
+
+func statusError(code int, body []byte) error {
+	hint := ""
+	switch code {
+	case http.StatusUnauthorized:
+		hint = " (HASS_URL must be the Home Assistant Core URL (e.g. https://homeassistant.local:8123), HASS_TOKEN must be an admin long-lived access token, and any reverse proxy in front of HA must forward the Authorization header)"
+	case http.StatusForbidden:
+		hint = " (token lacks required permissions)"
+	case http.StatusNotFound:
+		hint = " (check HASS_URL is correct)"
+	}
+	msg := strings.TrimSpace(string(body))
+	if msg == "" {
+		return fmt.Errorf("unexpected status %d%s", code, hint)
+	}
+	return fmt.Errorf("unexpected status %d%s: %s", code, hint, msg)
+}
 
 type ClientOptions struct {
 	InsecureSkipVerify bool
@@ -34,16 +52,17 @@ func NewClient(baseURL, token string, opts ClientOptions) *Client {
 }
 
 type createBackupResponse struct {
-	Result string `json:"result"`
-	Data   struct {
-		Slug string `json:"slug"`
-	} `json:"data"`
+	ServiceResponse struct {
+		Backup string `json:"backup"`
+	} `json:"service_response"`
 }
 
-// CreateBackup triggers a full backup via the HA Supervisor API and returns the backup slug.
-// This call blocks until the backup is created (can take several minutes for large installations).
+// CreateBackup triggers a full backup via the hassio.backup_full service and returns the backup slug.
+// Goes through the Core service handler (not the /api/hassio/ proxy, whose PATHS_ADMIN allowlist
+// rejects POST /backups/new/full with 401). Blocks until the backup is created — can take several
+// minutes for large installations.
 func (c *Client) CreateBackup(ctx context.Context) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/hassio/backups/new/full", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/services/hassio/backup_full?return_response", bytes.NewReader([]byte("{}")))
 	if err != nil {
 		return "", fmt.Errorf("build request: %w", err)
 	}
@@ -58,31 +77,34 @@ func (c *Client) CreateBackup(ctx context.Context) (string, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return "", fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+		return "", fmt.Errorf("%w", statusError(resp.StatusCode, body))
 	}
 
 	var result createBackupResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", fmt.Errorf("decode response: %w", err)
 	}
-	if result.Result != "ok" {
-		return "", fmt.Errorf("backup failed: result=%q", result.Result)
-	}
-	if result.Data.Slug == "" {
-		return "", fmt.Errorf("empty slug in response")
+	if result.ServiceResponse.Backup == "" {
+		return "", fmt.Errorf("empty slug in service response")
 	}
 
-	return result.Data.Slug, nil
+	return result.ServiceResponse.Backup, nil
 }
 
 // DeleteBackup removes the backup with the given slug from Home Assistant.
+// Uses the Core service handler (not DELETE /api/hassio/backups/{slug}, which the
+// PATHS_ADMIN allowlist rejects with 405 Method Not Allowed).
 func (c *Client) DeleteBackup(ctx context.Context, slug string) error {
-	url := fmt.Sprintf("%s/api/hassio/backups/%s", c.baseURL, slug)
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	body, err := json.Marshal(map[string]string{"slug": slug})
+	if err != nil {
+		return fmt.Errorf("marshal request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/services/hassio/backup_remove", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -91,8 +113,8 @@ func (c *Client) DeleteBackup(ctx context.Context, slug string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return statusError(resp.StatusCode, b)
 	}
 	return nil
 }
@@ -112,8 +134,9 @@ func (c *Client) DownloadBackup(ctx context.Context, slug string) (io.ReadCloser
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		resp.Body.Close()
-		return nil, fmt.Errorf("unexpected status %d", resp.StatusCode)
+		return nil, statusError(resp.StatusCode, body)
 	}
 
 	return resp.Body, nil
