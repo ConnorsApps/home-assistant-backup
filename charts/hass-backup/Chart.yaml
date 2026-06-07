@@ -2,5 +2,5 @@ apiVersion: v2
 name: hass-backup
 description: Backs up Home Assistant to S3-compatible or GCS object storage
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1.0"
