@@ -1,5 +1,5 @@
 image:
-  repository: ghcr.io/connorsapps/hass-backup
+  repository: ghcr.io/connorsapps/home-assistant-backup
   tag: ""
   pullPolicy: IfNotPresent
 

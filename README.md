@@ -4,7 +4,17 @@ A Golang application to automatically back up your Home Assistant instance to S3
 
 See [CONFIGURATION.md](CONFIGURATION.md) for setup details.
 
-A Docker image is available at `ghcr.io/connorsapps/hass-backup:latest`
+Docker images are published to the GitHub Container Registry for each storage backend.
+
+## Docker Images
+
+| Image | Storage Backend | Example `STORAGE_URL` |
+|---|---|---|
+| `ghcr.io/connorsapps/home-assistant-backup:latest-s3` | S3-compatible (AWS S3, MinIO, Backblaze B2, etc.) | `s3://my-bucket` |
+| `ghcr.io/connorsapps/home-assistant-backup:latest-gcs` | Google Cloud Storage | `gs://my-bucket` |
+| `ghcr.io/connorsapps/home-assistant-backup:latest-file` | Local filesystem | `file:///backups` |
+
+Versioned tags (e.g. `0.1.0-s3`, `0.1-gcs`) follow the same `-{backend}` suffix pattern.
 
 ## Quick Start
 
@@ -23,7 +33,7 @@ docker run --rm \
   -e STORAGE_URL=s3://my-bucket \
   -e AWS_ACCESS_KEY_ID=... \
   -e AWS_SECRET_ACCESS_KEY=... \
-  ghcr.io/connorsapps/hass-backup:latest
+  ghcr.io/connorsapps/home-assistant-backup:latest-s3
 ```
 
 ## Helm Chart

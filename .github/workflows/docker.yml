@@ -6,9 +6,15 @@ on:
       - main
     tags:
       - 'v*.*.*'
+    paths-ignore:
+      - '**.md'
+      - 'charts/**'
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - '**.md'
+      - 'charts/**'
 
 env:
   REGISTRY: ghcr.io
