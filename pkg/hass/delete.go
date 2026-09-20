@@ -3,8 +3,10 @@ package hass
 import (
 	"context"
 	"fmt"
+	"net/http"
 
-	"golang.org/x/net/websocket"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 type wsMsg = map[string]any
@@ -15,38 +17,25 @@ type wsMsg = map[string]any
 // hassio.backup_remove service. The WebSocket path is the only officially supported
 // route for deletion in HA 2025.1+.
 func (c *Client) DeleteBackup(ctx context.Context, slug string) error {
-	cfg, err := websocket.NewConfig(c.wsURL(), c.baseURL+"/")
-	if err != nil {
-		return fmt.Errorf("build websocket config: %w", err)
-	}
-	cfg.TlsConfig = c.tlsCfg
-
-	ws, err := websocket.DialConfig(cfg)
+	ws, _, err := websocket.Dial(ctx, c.wsURL(), &websocket.DialOptions{
+		HTTPClient: c.http,
+		HTTPHeader: http.Header{"Origin": {c.baseURL + "/"}},
+	})
 	if err != nil {
 		return fmt.Errorf("websocket dial: %w", err)
 	}
-	defer ws.Close()
+	defer ws.CloseNow()
 
-	// Close the WebSocket if the context is cancelled.
-	connClosed := make(chan struct{})
-	defer close(connClosed)
-	go func() {
-		select {
-		case <-ctx.Done():
-			ws.Close()
-		case <-connClosed:
-		}
-	}()
-
+	// Reads and writes are bound to ctx, so cancelling it aborts any in-flight call.
 	recv := func() (wsMsg, error) {
 		var m wsMsg
-		if err := websocket.JSON.Receive(ws, &m); err != nil {
+		if err := wsjson.Read(ctx, ws, &m); err != nil {
 			return nil, err
 		}
 		return m, nil
 	}
 	send := func(v any) error {
-		return websocket.JSON.Send(ws, v)
+		return wsjson.Write(ctx, ws, v)
 	}
 
 	// 1. Wait for auth_required.

@@ -38,7 +38,6 @@ type Client struct {
 	baseURL string
 	token   string
 	http    *http.Client
-	tlsCfg  *tls.Config
 }
 
 func (c *Client) wsURL() string {
@@ -47,15 +46,13 @@ func (c *Client) wsURL() string {
 }
 
 func NewClient(baseURL, token string, opts ClientOptions) *Client {
-	tlsCfg := &tls.Config{InsecureSkipVerify: opts.InsecureSkipVerify} //nolint:gosec
 	transport := &http.Transport{
-		TLSClientConfig: tlsCfg,
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: opts.InsecureSkipVerify}, //nolint:gosec
 	}
 	return &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		token:   token,
 		http:    &http.Client{Transport: transport, Timeout: opts.Timeout},
-		tlsCfg:  tlsCfg,
 	}
 }
 
