@@ -4,13 +4,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
-
 )
 
 func statusError(code int, body []byte) error {
@@ -90,7 +89,7 @@ func (c *Client) CreateBackup(ctx context.Context) (string, error) {
 	}
 
 	var result createBackupResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.UnmarshalRead(resp.Body, &result); err != nil {
 		return "", fmt.Errorf("decode response: %w", err)
 	}
 	if result.ServiceResponse.Backup == "" {
