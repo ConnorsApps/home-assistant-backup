@@ -8,6 +8,16 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/robfig/cron/v3"
+)
+
+type Mode string
+
+const (
+	ModeCore       Mode = "core"       // Home Assistant Core, with an access token
+	ModeSupervisor Mode = "supervisor" // the Supervisor API, inside an app
+	SupervisorURL       = "http://supervisor"
 )
 
 type Config struct {
@@ -15,9 +25,12 @@ type Config struct {
 	Storage       StorageConfig       `json:"storage" yaml:"storage" envPrefix:"STORAGE_"`
 	Logging       LoggingConfig       `json:"logging" yaml:"logging" envPrefix:"LOG_"`
 	Retention     RetentionConfig     `json:"retention" yaml:"retention" envPrefix:"RETENTION_"`
+	// Schedule is a 5-field cron expression. Empty runs one backup and exits.
+	Schedule string `json:"schedule" yaml:"schedule" env:"SCHEDULE"`
 }
 
 type HomeAssistantConfig struct {
+	Mode                Mode   `json:"mode" yaml:"mode" env:"MODE"`
 	URL                 string `json:"url" yaml:"url" env:"URL"`
 	Token               string `json:"token" yaml:"token" env:"TOKEN"`
 	Timeout             string `json:"timeout" yaml:"timeout" env:"TIMEOUT"`
@@ -42,6 +55,7 @@ type RetentionConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		HomeAssistant: HomeAssistantConfig{
+			Mode:                ModeCore,
 			Timeout:             "10m",
 			InsecureSkipVerify:  false,
 			DeleteAfterTransfer: true,
@@ -78,11 +92,20 @@ func ParseSlogLevel(v string) (slog.Level, error) {
 func (c *Config) Validate() error {
 	var errs []string
 
-	if c.HomeAssistant.URL == "" {
-		errs = append(errs, "homeAssistant.url is required")
-	}
-	if c.HomeAssistant.Token == "" {
-		errs = append(errs, "homeAssistant.token is required")
+	switch c.HomeAssistant.Mode {
+	case ModeCore:
+		if c.HomeAssistant.URL == "" {
+			errs = append(errs, "homeAssistant.url is required")
+		}
+		if c.HomeAssistant.Token == "" {
+			errs = append(errs, "homeAssistant.token is required")
+		}
+	case ModeSupervisor:
+		if c.HomeAssistant.Token == "" {
+			errs = append(errs, "SUPERVISOR_TOKEN is not set (supervisor mode needs an app with hassio_api)")
+		}
+	default:
+		errs = append(errs, fmt.Sprintf("homeAssistant.mode must be one of: %s, %s", ModeCore, ModeSupervisor))
 	}
 	if c.HomeAssistant.Timeout == "" {
 		errs = append(errs, "homeAssistant.timeout is required")
@@ -94,6 +117,11 @@ func (c *Config) Validate() error {
 	}
 	if c.Retention.KeepLast < 0 {
 		errs = append(errs, "retention.keepLast must be non-negative")
+	}
+	if c.Schedule != "" {
+		if _, err := cron.ParseStandard(c.Schedule); err != nil {
+			errs = append(errs, fmt.Sprintf("schedule invalid: %v", err))
+		}
 	}
 
 	validLevels := map[string]bool{"debug": true, "info": true, "warn": true, "warning": true, "error": true}
@@ -112,6 +140,12 @@ func (c *Config) Validate() error {
 }
 
 func applyEnv(cfg *Config) error {
+	if v, ok := os.LookupEnv("HASS_MODE"); ok {
+		cfg.HomeAssistant.Mode = Mode(strings.ToLower(v))
+	}
+	if v, ok := os.LookupEnv("SCHEDULE"); ok {
+		cfg.Schedule = strings.TrimSpace(v)
+	}
 	if v, ok := os.LookupEnv("HASS_URL"); ok {
 		cfg.HomeAssistant.URL = v
 	}
@@ -157,12 +191,26 @@ func applyEnv(cfg *Config) error {
 	return nil
 }
 
+// applySupervisor defaults the URL and token an app gets from the Supervisor.
+func applySupervisor(cfg *Config) {
+	if cfg.HomeAssistant.Mode != ModeSupervisor {
+		return
+	}
+	if cfg.HomeAssistant.URL == "" {
+		cfg.HomeAssistant.URL = SupervisorURL
+	}
+	if cfg.HomeAssistant.Token == "" {
+		cfg.HomeAssistant.Token = os.Getenv("SUPERVISOR_TOKEN")
+	}
+}
+
 func LoadConfig() (*Config, error) {
 	cfg := DefaultConfig()
 
 	if err := applyEnv(cfg); err != nil {
 		return nil, fmt.Errorf("parse environment variables: %w", err)
 	}
+	applySupervisor(cfg)
 
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("configuration invalid: %w", err)

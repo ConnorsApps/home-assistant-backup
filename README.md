@@ -52,6 +52,10 @@ helm install hass-backup hass-backup/hass-backup \
   --set secret.AWS_SECRET_ACCESS_KEY=...
 ```
 
+## Home Assistant app
+
+On Home Assistant OS or Supervised, use [home-assistant-addons](https://github.com/ConnorsApps/home-assistant-addons) instead: scheduled, no token needed. See `HASS_MODE` in [CONFIGURATION.md](CONFIGURATION.md).
+
 ## Requirements
 
 - Home Assistant with the Supervisor API (Home Assistant OS or Supervised)

@@ -17,6 +17,27 @@ type ObjectStore interface {
 	Close() error
 }
 
+// withFileOptions sets, unless the URL already does:
+//   - create_dir: the driver won't create a missing directory.
+//   - no_tmp_dir: uploads are staged in /tmp and renamed into place, which fails
+//     with "invalid cross-device link" when the target is another mount.
+func withFileOptions(storageURL string) string {
+	if !strings.HasPrefix(storageURL, "file://") {
+		return storageURL
+	}
+	for _, opt := range []string{"create_dir", "no_tmp_dir"} {
+		if strings.Contains(storageURL, opt+"=") {
+			continue
+		}
+		sep := "?"
+		if strings.Contains(storageURL, "?") {
+			sep = "&"
+		}
+		storageURL += sep + opt + "=true"
+	}
+	return storageURL
+}
+
 type blobStore struct {
 	b *blob.Bucket
 }
@@ -28,7 +49,7 @@ type blobStore struct {
 //   - s3://    — Amazon S3 or S3-compatible (configure via AWS_ENDPOINT_URL, AWS_ACCESS_KEY_ID, etc.)
 //   - gs://    — Google Cloud Storage
 func Open(ctx context.Context, storageURL string) (ObjectStore, error) {
-	b, err := blob.OpenBucket(ctx, storageURL)
+	b, err := blob.OpenBucket(ctx, withFileOptions(storageURL))
 	if err != nil {
 		return nil, fmt.Errorf("open bucket %q: %w", storageURL, err)
 	}

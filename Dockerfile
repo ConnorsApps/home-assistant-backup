@@ -7,7 +7,7 @@ WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY main.go cleanup.go ./
+COPY *.go ./
 COPY pkg/ pkg/
 
 ARG VERSION=dev

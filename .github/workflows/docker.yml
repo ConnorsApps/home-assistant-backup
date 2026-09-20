@@ -29,7 +29,16 @@ jobs:
 
     strategy:
       matrix:
-        backend: [s3, gcs, file]
+        include:
+          - backend: s3
+            tags: s3
+          - backend: gcs
+            tags: gcs
+          - backend: file
+            tags: file
+          # Every driver, for the Home Assistant app.
+          - backend: all
+            tags: s3,gcs,file
 
     steps:
       - name: Checkout repository
@@ -95,4 +104,4 @@ jobs:
           build-args: |
             VERSION=${{ steps.version.outputs.version }}
             COMMIT=${{ steps.version.outputs.commit }}
-            STORAGE_BACKEND=${{ matrix.backend }}
+            STORAGE_BACKEND=${{ matrix.tags }}

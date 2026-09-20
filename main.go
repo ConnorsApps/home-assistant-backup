@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -13,12 +14,21 @@ import (
 	"github.com/ConnorsApps/hass-backup/pkg/config"
 	"github.com/ConnorsApps/hass-backup/pkg/hass"
 	"github.com/ConnorsApps/hass-backup/pkg/storage"
+	"github.com/ConnorsApps/hass-backup/pkg/supervisor"
+	"github.com/robfig/cron/v3"
 )
 
 var (
 	Version = "dev"
 	Commit  = "unknown"
 )
+
+// backupSource is Home Assistant Core or, in an app, the Supervisor.
+type backupSource interface {
+	CreateBackup(ctx context.Context) (slug string, err error)
+	DownloadBackup(ctx context.Context, slug string) (io.ReadCloser, error)
+	DeleteBackup(ctx context.Context, slug string) error
+}
 
 func main() {
 	showVersion := flag.Bool("version", false, "Show version and exit")
@@ -42,9 +52,11 @@ func main() {
 
 	slog.Info("Starting Home Assistant backup",
 		"version", Version,
+		"mode", cfg.HomeAssistant.Mode,
 		"hassURL", cfg.HomeAssistant.URL,
 		"storageURL", cfg.Storage.URL,
 		"prefix", cfg.Storage.Prefix,
+		"schedule", cfg.Schedule,
 	)
 
 	timeout, err := time.ParseDuration(cfg.HomeAssistant.Timeout)
@@ -53,37 +65,70 @@ func main() {
 		os.Exit(1)
 	}
 
-	client := hass.NewClient(cfg.HomeAssistant.URL, cfg.HomeAssistant.Token, hass.ClientOptions{
-		InsecureSkipVerify: cfg.HomeAssistant.InsecureSkipVerify,
-		Timeout:            timeout,
-	})
+	var source backupSource
+	switch cfg.HomeAssistant.Mode {
+	case config.ModeSupervisor:
+		source = supervisor.NewClient(cfg.HomeAssistant.URL, cfg.HomeAssistant.Token)
+	default:
+		source = hass.NewClient(cfg.HomeAssistant.URL, cfg.HomeAssistant.Token, hass.ClientOptions{
+			InsecureSkipVerify: cfg.HomeAssistant.InsecureSkipVerify,
+			Timeout:            timeout,
+		})
+	}
 
+	job := func(ctx context.Context) error {
+		return runBackup(ctx, cfg, source, timeout)
+	}
+
+	if cfg.Schedule == "" {
+		if err := job(ctx); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
+
+	sched, err := cron.ParseStandard(cfg.Schedule)
+	if err != nil {
+		slog.Error("Invalid schedule", "error", err)
+		os.Exit(1)
+	}
+	runSchedule(ctx, sched, job)
+	slog.Info("Stopped")
+}
+
+// runBackup logs each failure where it happens and returns it.
+func runBackup(ctx context.Context, cfg *config.Config, source backupSource, timeout time.Duration) error {
 	slog.Info("Creating backup (this may take several minutes)...")
 	backupCtx, backupCancel := context.WithTimeout(ctx, timeout)
 	defer backupCancel()
 
-	slug, err := client.CreateBackup(backupCtx)
+	slug, err := source.CreateBackup(backupCtx)
 	if err != nil {
 		slog.Error("Failed to create backup", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("create backup: %w", err)
 	}
 	slog.Info("Backup created", "slug", slug)
+
+	// A failure past this point leaves the backup in Home Assistant (it may be
+	// the only copy); log its slug.
+	failed := func(msg string, err error) error {
+		slog.Error(msg, "error", err, "slug", slug, "note", "the backup is still in Home Assistant")
+		return fmt.Errorf("%s: %w", msg, err)
+	}
 
 	slog.Info("Downloading backup...")
 	downloadCtx, downloadCancel := context.WithTimeout(ctx, timeout)
 	defer downloadCancel()
 
-	rc, err := client.DownloadBackup(downloadCtx, slug)
+	rc, err := source.DownloadBackup(downloadCtx, slug)
 	if err != nil {
-		slog.Error("Failed to download backup", "error", err)
-		os.Exit(1)
+		return failed("download backup", err)
 	}
 	defer rc.Close()
 
 	store, err := storage.Open(ctx, cfg.Storage.URL)
 	if err != nil {
-		slog.Error("Failed to open storage", "error", err)
-		os.Exit(1)
+		return failed("open storage", err)
 	}
 	defer store.Close()
 
@@ -92,13 +137,12 @@ func main() {
 
 	written, err := store.Put(ctx, key, rc)
 	if err != nil {
-		slog.Error("Failed to upload backup", "error", err)
-		os.Exit(1)
+		return failed("upload backup", err)
 	}
 	slog.Info("Backup uploaded successfully", "key", key, "bytes", written)
 
 	if cfg.HomeAssistant.DeleteAfterTransfer {
-		if err := client.DeleteBackup(ctx, slug); err != nil {
+		if err := source.DeleteBackup(ctx, slug); err != nil {
 			slog.Warn("Failed to delete backup from Home Assistant", "slug", slug, "error", err)
 		} else {
 			slog.Info("Deleted backup from Home Assistant", "slug", slug)
@@ -112,4 +156,5 @@ func main() {
 	}
 
 	slog.Info("Done")
+	return nil
 }

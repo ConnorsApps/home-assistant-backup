@@ -6,8 +6,9 @@ Configuration is provided via environment variables.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `HASS_URL` | Home Assistant URL | required |
-| `HASS_TOKEN` | Long-lived access token | required |
+| `HASS_MODE` | `core` (access token) or `supervisor` (Supervisor API, for the Home Assistant app) | `core` |
+| `HASS_URL` | Home Assistant URL | required in `core` mode |
+| `HASS_TOKEN` | Long-lived access token | required in `core` mode |
 | `HASS_TIMEOUT` | HTTP timeout for backup operations (e.g. `10m`, `1h`, `30s`) | `10m` |
 | `HASS_INSECURE` | Skip TLS verification for self-signed certs | `false` |
 | `STORAGE_URL` | Storage backend URL (see below) | `file://./backups` |
@@ -15,6 +16,11 @@ Configuration is provided via environment variables.
 | `LOG_LEVEL` | Log level: `debug`, `info`, `warn`, `error` | `info` |
 | `LOG_FORMAT` | Log format: `pretty`, `text`, `json` | `pretty` |
 | `RETENTION_KEEP_LAST` | Number of backups to keep (0 = unlimited) | `30` |
+| `SCHEDULE` | 5-field cron expression (`0 3 * * *`, `@daily`; `CRON_TZ=Zone/Name ` prefix or `TZ` for the zone). Empty runs one backup and exits. A failed run is logged and the next still happens | empty |
+
+## Home Assistant app
+
+`HASS_MODE=supervisor` is for the [app](https://github.com/ConnorsApps/home-assistant-addons). It uses the Supervisor's `/backups` API (needs `hassio_api` and `hassio_role: backup`), since the Core proxy rejects the download path. URL and token come from the Supervisor.
 
 ## Storage Backends
 
