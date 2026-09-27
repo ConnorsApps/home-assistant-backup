@@ -56,6 +56,8 @@ helm install hass-backup hass-backup/hass-backup \
 
 On Home Assistant OS or Supervised, use [home-assistant-addons](https://github.com/ConnorsApps/home-assistant-addons) instead: scheduled, no token needed. See `HASS_MODE` in [CONFIGURATION.md](CONFIGURATION.md).
 
+A `v*` tag also starts that repo's Update workflow, which moves the app to the new image and publishes it. That needs the `HA_ADDONS_TOKEN` secret, a fine-grained token for home-assistant-addons with Actions: read and write; without it, the app's daily check picks the release up.
+
 ## Requirements
 
 - Home Assistant with the Supervisor API (Home Assistant OS or Supervised)
