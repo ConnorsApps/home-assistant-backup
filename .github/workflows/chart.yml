@@ -44,9 +44,10 @@ jobs:
         run: |
           helm lint charts/hass-backup
           helm template hass-backup charts/hass-backup >/dev/null
-          # Helm adds a parent chart's global values to every subchart, so the
-          # closed schema must allow them.
-          helm template hass-backup charts/hass-backup --set global.example=1 >/dev/null
+          # As a subchart, Helm adds the parent's global values, and a parent's
+          # `condition: hass-backup.enabled` puts enabled here; the closed schema
+          # must allow both.
+          helm template hass-backup charts/hass-backup --set global.example=1 --set enabled=true >/dev/null
 
       # Proves Helm picks up values.schema.json, which is closed.
       - name: Unknown values are rejected

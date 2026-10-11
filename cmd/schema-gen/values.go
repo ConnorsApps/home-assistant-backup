@@ -159,6 +159,7 @@ type prometheusRuleValues struct {
 
 type values struct {
 	Global                     map[string]any              `json:"global" description:"Values shared with parent charts. Helm adds this key to every subchart, so it must be allowed; the chart reads none of it."`
+	Enabled                    bool                        `json:"enabled" description:"Only for a parent chart that gates this chart with condition: <name>.enabled, which puts the key here. The chart itself does not read it."`
 	NameOverride               string                      `json:"nameOverride" pattern:"^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$" description:"Override the chart name in resource names"`
 	FullnameOverride           string                      `json:"fullnameOverride" pattern:"^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$" description:"Override the fully qualified resource name"`
 	Image                      imageValues                 `json:"image"`

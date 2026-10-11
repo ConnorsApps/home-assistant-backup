@@ -4,6 +4,10 @@
   "description": "Helm values for the hass-backup chart",
   "additionalProperties": false,
   "properties": {
+    "enabled": {
+      "description": "Only for a parent chart that gates this chart with condition: \u003cname\u003e.enabled, which puts the key here. The chart itself does not read it.",
+      "type": "boolean"
+    },
     "env": {
       "description": "Non-sensitive environment variables for the backup container. Any other name is passed through too; see CONFIGURATION.md for what the app reads.",
       "additionalProperties": {
