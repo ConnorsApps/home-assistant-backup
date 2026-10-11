@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ConnorsApps/home-assistant-backup/main/charts/hass-backup/values.schema.json
 image:
   repository: ghcr.io/connorsapps/home-assistant-backup
   tag: ""
