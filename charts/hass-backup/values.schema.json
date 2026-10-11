@@ -91,23 +91,24 @@
           "type": "string"
         },
         "LOG_FORMAT": {
-          "description": "Log format",
-          "enum": [
+          "description": "Log format: pretty, text or json, in any case",
+          "examples": [
             "pretty",
             "text",
             "json"
           ],
+          "pattern": "^([Pp][Rr][Ee][Tt][Tt][Yy]|[Tt][Ee][Xx][Tt]|[Jj][Ss][Oo][Nn])$",
           "type": "string"
         },
         "LOG_LEVEL": {
-          "description": "Log level",
-          "enum": [
+          "description": "Log level: debug, info, warn or error, in any case",
+          "examples": [
             "debug",
             "info",
             "warn",
-            "warning",
             "error"
           ],
+          "pattern": "^([Dd][Ee][Bb][Uu][Gg]|[Ii][Nn][Ff][Oo]|[Ww][Aa][Rr][Nn]|[Ww][Aa][Rr][Nn][Ii][Nn][Gg]|[Ee][Rr][Rr][Oo][Rr])$",
           "type": "string"
         },
         "RETENTION_KEEP_LAST": {
@@ -144,12 +145,21 @@
       "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$",
       "type": "string"
     },
+    "global": {
+      "description": "Values shared with parent charts. Helm adds this key to every subchart, so it must be allowed; the chart reads none of it.",
+      "additionalProperties": {},
+      "type": [
+        "object",
+        "null"
+      ]
+    },
     "image": {
       "additionalProperties": false,
       "properties": {
         "pullPolicy": {
-          "description": "Image pull policy",
+          "description": "Image pull policy. Empty: the cluster default.",
           "enum": [
+            "",
             "Always",
             "IfNotPresent",
             "Never"
@@ -163,7 +173,10 @@
         },
         "tag": {
           "description": "Image tag. Empty: \u003cappVersion\u003e-\u003cbackend\u003e, where the backend (s3, gcs or file) follows the scheme of env.STORAGE_URL.",
-          "type": "string"
+          "type": [
+            "string",
+            "integer"
+          ]
         }
       },
       "type": "object"

@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -68,6 +70,30 @@ func TestBoolishEnum(t *testing.T) {
 		_, err := strconv.ParseBool(in)
 		if enum[in] != (err == nil) {
 			t.Errorf("%q: in enum = %v, ParseBool ok = %v", in, enum[in], err == nil)
+		}
+	}
+}
+
+// The app lowercases LOG_LEVEL and LOG_FORMAT before comparing (pkg/config).
+func TestLogPatterns(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		pattern string
+		valid   []string
+	}{
+		{"level", anyCase(logLevels...), logLevels},
+		{"format", anyCase(logFormats...), logFormats},
+	} {
+		re := regexp.MustCompile(tc.pattern)
+		for _, in := range []string{
+			"debug", "DEBUG", "Debug", "dEbUg", "info", "INFO", "warn", "Warn", "WARNING", "warning", "error", "ERROR",
+			"pretty", "Pretty", "TEXT", "text", "json", "JSON", "Json",
+			"", "loud", "trace", "fatal", "xml", " debug", "debug ", "debu", "debugg",
+		} {
+			want := slices.Contains(tc.valid, strings.ToLower(in))
+			if got := re.MatchString(in); got != want {
+				t.Errorf("%s %q: pattern match = %v, app accepts = %v", tc.name, in, got, want)
+			}
 		}
 	}
 }
@@ -153,11 +179,16 @@ func TestValidation(t *testing.T) {
 		ok  bool
 	}{
 		"unknown top-level key":          {"bogus: 1", false},
+		"global added to every subchart": {"global: {}", true},
+		"global from a parent chart":     {"global: {imageRegistry: example.com}", true},
 		"typo in nested key":             {"image: {pullPolcy: Always}", false},
 		"typo in prometheusRule":         {"prometheusRule: {enable: true}", false},
 		"overrides the helpers read":     {"nameOverride: hb\nfullnameOverride: home-backup", true},
 		"bad name override":              {"fullnameOverride: Bad_Name", false},
 		"bad pull policy":                {"image: {pullPolicy: Sometimes}", false},
+		"empty pull policy":              {"image: {pullPolicy: ''}", true},
+		"numeric image tag from CI":      {"image: {tag: 1234}", true},
+		"float image tag":                {"image: {tag: 1.10}", false},
 		"empty repository":               {"image: {repository: ''}", false},
 		"empty tag derives from backend": {"image: {tag: ''}", true},
 		"cron":                           {"schedule: '*/5 * * * *'", true},
@@ -171,6 +202,8 @@ func TestValidation(t *testing.T) {
 		"empty storage url":              {"env: {STORAGE_URL: ''}", false},
 		"bad log level":                  {"env: {LOG_LEVEL: loud}", false},
 		"log level":                      {"env: {LOG_LEVEL: debug}", true},
+		"log level in capitals":          {"env: {LOG_LEVEL: DEBUG}", true},
+		"log format in any case":         {"env: {LOG_FORMAT: Json}", true},
 		"bad log format":                 {"env: {LOG_FORMAT: xml}", false},
 		"keep last as number":            {"env: {RETENTION_KEEP_LAST: 7}", true},
 		"keep last as string":            {"env: {RETENTION_KEEP_LAST: '30'}", true},
@@ -215,5 +248,48 @@ func TestRepoValuesValidate(t *testing.T) {
 	}
 	if err := validateYAML(compile(t), string(y)); err != nil {
 		t.Error(err)
+	}
+}
+
+// schemaURL is where editors fetch the schema: the generated file on main.
+const schemaURL = "https://raw.githubusercontent.com/ConnorsApps/home-assistant-backup/main/charts/hass-backup/values.schema.json"
+
+// values.yaml and the README values examples start with a yaml-language-server
+// comment for this schema. A typo there silently turns editor validation off,
+// and an example that doesn't validate teaches the wrong thing.
+func TestSchemaComments(t *testing.T) {
+	schema := compile(t)
+	header := "# yaml-language-server: $schema=" + schemaURL + "\n"
+
+	y, err := os.ReadFile("../../charts/hass-backup/values.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(y), header) {
+		t.Errorf("values.yaml must start with %q", strings.TrimSpace(header))
+	}
+
+	fence := regexp.MustCompile("(?s)```yaml\n(.*?)```")
+	for _, f := range []string{"../../README.md"} {
+		md, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		examples := 0
+		for _, m := range fence.FindAllStringSubmatch(string(md), -1) {
+			if !strings.HasPrefix(m[1], "# yaml-language-server:") {
+				continue
+			}
+			examples++
+			if !strings.HasPrefix(m[1], header) {
+				t.Errorf("%s: example has the wrong schema comment: %q", f, strings.SplitN(m[1], "\n", 2)[0])
+			}
+			if err := validateYAML(schema, m[1]); err != nil {
+				t.Errorf("%s: example does not validate: %v", f, err)
+			}
+		}
+		if examples == 0 {
+			t.Errorf("%s: no yaml example with a schema comment", f)
+		}
 	}
 }

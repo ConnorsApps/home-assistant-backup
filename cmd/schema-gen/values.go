@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	jsonschema "github.com/swaggest/jsonschema-go"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -12,10 +14,21 @@ import (
 // open: see ownStruct (main.go). Their documented variables mirror
 // pkg/config/config.go and CONFIGURATION.md in the app.
 
+// pullPolicy: "" renders as null, which leaves the field to the cluster default.
 type pullPolicy string
 
 func (pullPolicy) Enum() []any {
-	return []any{string(corev1.PullAlways), string(corev1.PullIfNotPresent), string(corev1.PullNever)}
+	return []any{"", string(corev1.PullAlways), string(corev1.PullIfNotPresent), string(corev1.PullNever)}
+}
+
+// imageTag is a string, but a CI-supplied `--set image.tag=1234` parses as an
+// integer and the helper prints it as is, so both must keep working. A float
+// stays rejected: 1.10 would render as 1.1.
+type imageTag string
+
+func (imageTag) PrepareJSONSchema(s *jsonschema.Schema) error {
+	s.Type = &jsonschema.Type{SliceOfSimpleTypeValues: []jsonschema.SimpleType{jsonschema.String, jsonschema.Integer}}
+	return nil
 }
 
 // cronSchedule is what a Kubernetes CronJob accepts: five fields, an @macro
@@ -74,21 +87,47 @@ func (storageURL) PrepareJSONSchema(s *jsonschema.Schema) error {
 	return nil
 }
 
+// anyCase builds a pattern for words the app lowercases before comparing: JSON
+// Schema patterns have no case-insensitive flag. A plain enum would reject
+// LOG_LEVEL=DEBUG, which works.
+func anyCase(words ...string) string {
+	alts := make([]string, len(words))
+	for i, w := range words {
+		var b strings.Builder
+		for _, r := range w {
+			b.WriteString("[" + strings.ToUpper(string(r)) + string(r) + "]")
+		}
+		alts[i] = b.String()
+	}
+	return "^(" + strings.Join(alts, "|") + ")$"
+}
+
+var (
+	logLevels  = []string{"debug", "info", "warn", "warning", "error"}
+	logFormats = []string{"pretty", "text", "json"}
+)
+
 type logLevel string
 
-func (logLevel) Enum() []any { return []any{"debug", "info", "warn", "warning", "error"} }
+func (logLevel) PrepareJSONSchema(s *jsonschema.Schema) error {
+	s.WithPattern(anyCase(logLevels...)).WithExamples("debug", "info", "warn", "error")
+	return nil
+}
 
 type logFormat string
 
-func (logFormat) Enum() []any { return []any{"pretty", "text", "json"} }
+func (logFormat) PrepareJSONSchema(s *jsonschema.Schema) error {
+	s.WithPattern(anyCase(logFormats...)).WithExamples("pretty", "text", "json")
+	return nil
+}
 
 // envNamePattern is what Kubernetes accepts as an environment variable name.
 const envNamePattern = `^[-._a-zA-Z][-._a-zA-Z0-9]*$`
 
 type imageValues struct {
 	Repository string     `json:"repository" minLength:"1" description:"Image repository"`
-	Tag        string     `json:"tag" description:"Image tag. Empty: <appVersion>-<backend>, where the backend (s3, gcs or file) follows the scheme of env.STORAGE_URL."`
-	PullPolicy pullPolicy `json:"pullPolicy" description:"Image pull policy"`
+	Tag        imageTag   `json:"tag" description:"Image tag. Empty: <appVersion>-<backend>, where the backend (s3, gcs or file) follows the scheme of env.STORAGE_URL."`
+	PullPolicy pullPolicy `json:"pullPolicy" description:"Image pull policy. Empty: the cluster default."`
 }
 
 type envValues struct {
@@ -101,8 +140,8 @@ type envValues struct {
 	AWSEndpointURL          string     `json:"AWS_ENDPOINT_URL" description:"Endpoint of an S3-compatible service such as Ceph RGW or MinIO. Empty: AWS S3."`
 	AWSRegion               string     `json:"AWS_REGION" description:"S3 region"`
 	RetentionKeepLast       keepLast   `json:"RETENTION_KEEP_LAST" description:"Number of backups to keep; 0 keeps them all"`
-	LogLevel                logLevel   `json:"LOG_LEVEL" description:"Log level"`
-	LogFormat               logFormat  `json:"LOG_FORMAT" description:"Log format"`
+	LogLevel                logLevel   `json:"LOG_LEVEL" description:"Log level: debug, info, warn or error, in any case"`
+	LogFormat               logFormat  `json:"LOG_FORMAT" description:"Log format: pretty, text or json, in any case"`
 }
 
 type secretValues struct {
@@ -119,6 +158,7 @@ type prometheusRuleValues struct {
 }
 
 type values struct {
+	Global                     map[string]any              `json:"global" description:"Values shared with parent charts. Helm adds this key to every subchart, so it must be allowed; the chart reads none of it."`
 	NameOverride               string                      `json:"nameOverride" pattern:"^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$" description:"Override the chart name in resource names"`
 	FullnameOverride           string                      `json:"fullnameOverride" pattern:"^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$" description:"Override the fully qualified resource name"`
 	Image                      imageValues                 `json:"image"`
