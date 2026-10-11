@@ -9,12 +9,14 @@ on:
     paths-ignore:
       - '**.md'
       - 'charts/**'
+      - 'cmd/schema-gen/**'
   pull_request:
     branches:
       - main
     paths-ignore:
       - '**.md'
       - 'charts/**'
+      - 'cmd/schema-gen/**'
 
 env:
   REGISTRY: ghcr.io

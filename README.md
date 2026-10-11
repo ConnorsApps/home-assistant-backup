@@ -52,6 +52,25 @@ helm install hass-backup hass-backup/hass-backup \
   --set secret.AWS_SECRET_ACCESS_KEY=...
 ```
 
+Or keep the settings in a values file. Its first line gives editors completion and validation; Helm checks the same [schema](charts/hass-backup/values.schema.json) on install, so a mistyped key fails instead of being ignored.
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ConnorsApps/home-assistant-backup/main/charts/hass-backup/values.schema.json
+env:
+  HASS_URL: https://your-homeassistant
+  STORAGE_URL: s3://my-bucket
+secret:
+  HASS_TOKEN: your-long-lived-access-token
+  AWS_ACCESS_KEY_ID: your-access-key-id
+  AWS_SECRET_ACCESS_KEY: your-secret-access-key
+```
+
+```bash
+helm install hass-backup hass-backup/hass-backup -f values.yaml
+```
+
+The schema is generated from [cmd/schema-gen](cmd/schema-gen); after changing `values.yaml`, run `go run .` there.
+
 ## Home Assistant app
 
 On Home Assistant OS or Supervised, use [home-assistant-addons](https://github.com/ConnorsApps/home-assistant-addons) instead: scheduled, no token needed. See `HASS_MODE` in [CONFIGURATION.md](CONFIGURATION.md).

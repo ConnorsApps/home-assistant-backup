@@ -1,0 +1,299 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "hass-backup chart values",
+  "description": "Helm values for the hass-backup chart",
+  "additionalProperties": false,
+  "properties": {
+    "env": {
+      "description": "Non-sensitive environment variables for the backup container. Any other name is passed through too; see CONFIGURATION.md for what the app reads.",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      },
+      "properties": {
+        "AWS_ENDPOINT_URL": {
+          "description": "Endpoint of an S3-compatible service such as Ceph RGW or MinIO. Empty: AWS S3.",
+          "type": "string"
+        },
+        "AWS_REGION": {
+          "description": "S3 region",
+          "type": "string"
+        },
+        "HASS_DELETE_AFTER_TRANSFER": {
+          "description": "Delete the backup from Home Assistant once it is in storage. App default: true.",
+          "enum": [
+            true,
+            false,
+            0,
+            1,
+            "1",
+            "t",
+            "T",
+            "TRUE",
+            "true",
+            "True",
+            "0",
+            "f",
+            "F",
+            "FALSE",
+            "false",
+            "False"
+          ],
+          "type": [
+            "boolean",
+            "integer",
+            "string"
+          ]
+        },
+        "HASS_INSECURE": {
+          "description": "Skip TLS verification, for self-signed certificates. App default: false.",
+          "enum": [
+            true,
+            false,
+            0,
+            1,
+            "1",
+            "t",
+            "T",
+            "TRUE",
+            "true",
+            "True",
+            "0",
+            "f",
+            "F",
+            "FALSE",
+            "false",
+            "False"
+          ],
+          "type": [
+            "boolean",
+            "integer",
+            "string"
+          ]
+        },
+        "HASS_TIMEOUT": {
+          "description": "HTTP timeout for backup operations, e.g. 10m, 1h or 30s. App default: 10m.",
+          "anyOf": [
+            {
+              "pattern": "^([-+]?(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+|[-+]?0)$",
+              "type": "string"
+            },
+            {
+              "const": 0
+            }
+          ]
+        },
+        "HASS_URL": {
+          "description": "Home Assistant URL, e.g. https://homeassistant.example.com. Required.",
+          "type": "string"
+        },
+        "LOG_FORMAT": {
+          "description": "Log format",
+          "enum": [
+            "pretty",
+            "text",
+            "json"
+          ],
+          "type": "string"
+        },
+        "LOG_LEVEL": {
+          "description": "Log level",
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "warning",
+            "error"
+          ],
+          "type": "string"
+        },
+        "RETENTION_KEEP_LAST": {
+          "description": "Number of backups to keep; 0 keeps them all",
+          "minimum": 0,
+          "pattern": "^(\\+?[0-9]+|-0+)$",
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "STORAGE_PREFIX": {
+          "description": "Object key prefix for backup files",
+          "type": "string"
+        },
+        "STORAGE_URL": {
+          "description": "Where backups go: s3://bucket (S3-compatible), gs://bucket (Google Cloud Storage) or file:///path. The image variant (-s3, -gcs, -file) follows the scheme unless image.tag is set. Append ?use_path_style=true for S3-compatible services without virtual-hosted-style addressing (Ceph RGW, MinIO).",
+          "pattern": "^(s3|gs|file)://.+$",
+          "type": "string"
+        }
+      },
+      "propertyNames": {
+        "pattern": "^[-._a-zA-Z][-._a-zA-Z0-9]*$"
+      },
+      "type": "object"
+    },
+    "failedJobsHistoryLimit": {
+      "description": "Failed Jobs to keep",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "fullnameOverride": {
+      "description": "Override the fully qualified resource name",
+      "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$",
+      "type": "string"
+    },
+    "image": {
+      "additionalProperties": false,
+      "properties": {
+        "pullPolicy": {
+          "description": "Image pull policy",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ],
+          "type": "string"
+        },
+        "repository": {
+          "description": "Image repository",
+          "minLength": 1,
+          "type": "string"
+        },
+        "tag": {
+          "description": "Image tag. Empty: \u003cappVersion\u003e-\u003cbackend\u003e, where the backend (s3, gcs or file) follows the scheme of env.STORAGE_URL.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "nameOverride": {
+      "description": "Override the chart name in resource names",
+      "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$",
+      "type": "string"
+    },
+    "prometheusRule": {
+      "description": "Optional PrometheusRule alerting on failed or missing backups",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "description": "Render a PrometheusRule that alerts on failed or missing backups. Needs the Prometheus Operator CRDs and kube-state-metrics.",
+          "type": "boolean"
+        },
+        "labels": {
+          "description": "Extra PrometheusRule labels, e.g. the one your Prometheus ruleSelector matches",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "namespace": {
+          "description": "Namespace of the PrometheusRule, which the Prometheus Operator must watch",
+          "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "resources": {
+      "description": "Container resources",
+      "properties": {
+        "claims": {
+          "description": "Claims lists the names of resources, defined in spec.resourceClaims, that are used by this container. This field depends on the DynamicResourceAllocation feature gate. This field is immutable. It can only be set for containers.",
+          "items": {
+            "description": "ResourceClaim references one entry in PodSpec.ResourceClaims.",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "description": "Name must match the name of one entry in pod.spec.resourceClaims of the Pod where this field is used. It makes that resource available inside a container.",
+                "type": "string"
+              },
+              "request": {
+                "description": "Request is the name chosen for a request in the referenced claim. If empty, everything from the claim is made available, otherwise only the result of this request.",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "limits": {
+          "description": "Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "type": "object"
+        },
+        "requests": {
+          "description": "Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. Requests cannot exceed Limits. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "schedule": {
+      "description": "CronJob schedule: five fields or an @macro such as @daily (default: 3 AM daily)",
+      "pattern": "^((CRON_TZ|TZ)=\\S+\\s+)?(@(yearly|annually|monthly|weekly|daily|midnight|hourly)|@every\\s+\\S+|\\S+(\\s+\\S+){4})$",
+      "type": "string"
+    },
+    "secret": {
+      "description": "Sensitive environment variables, stored in a Secret. Values must be strings: use --set-string for numeric ones. Any other name is passed through too.",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "properties": {
+        "AWS_ACCESS_KEY_ID": {
+          "description": "S3 access key ID",
+          "type": "string"
+        },
+        "AWS_SECRET_ACCESS_KEY": {
+          "description": "S3 secret access key",
+          "type": "string"
+        },
+        "GOOGLE_APPLICATION_CREDENTIALS": {
+          "description": "GCS only: path to the service account JSON, which you mount into the pod separately",
+          "type": "string"
+        },
+        "HASS_TOKEN": {
+          "description": "Home Assistant long-lived access token. Required.",
+          "type": "string"
+        }
+      },
+      "propertyNames": {
+        "pattern": "^[-._a-zA-Z][-._a-zA-Z0-9]*$"
+      },
+      "type": "object"
+    },
+    "successfulJobsHistoryLimit": {
+      "description": "Finished Jobs to keep",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "type": "object"
+}

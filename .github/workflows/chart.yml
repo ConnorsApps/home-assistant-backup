@@ -1,0 +1,55 @@
+name: Chart
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'charts/**'
+      - 'cmd/schema-gen/**'
+      - '.github/workflows/chart.yml'
+  pull_request:
+    paths:
+      - 'charts/**'
+      - 'cmd/schema-gen/**'
+      - '.github/workflows/chart.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  schema:
+    name: Schema
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: cmd/schema-gen/go.mod
+
+      # cmd/schema-gen is its own module, so the root vet and test skip it.
+      - name: Schema is up to date
+        working-directory: cmd/schema-gen
+        run: |
+          go vet ./...
+          go test ./...
+          go run . -check
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+
+      - name: Lint and render
+        run: |
+          helm lint charts/hass-backup
+          helm template hass-backup charts/hass-backup >/dev/null
+
+      # Proves Helm picks up values.schema.json, which is closed.
+      - name: Unknown values are rejected
+        run: |
+          if err="$(helm template hass-backup charts/hass-backup --set bogus=1 2>&1 >/dev/null)"; then
+            echo "rendered with an unknown value" >&2
+            exit 1
+          fi
+          grep -q "values don't meet the specifications of the schema" <<<"$err" || { echo "unexpected error: $err" >&2; exit 1; }
